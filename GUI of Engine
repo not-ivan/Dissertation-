@@ -1,0 +1,675 @@
+15th Febuary
+from tkinter import *
+from tkinter import filedialog
+import subprocess
+import threading
+import os
+import tempfile
+import ttkbootstrap as tb
+
+root = tb.Window(themename="superhero")
+root.title("żbikAV")
+root.geometry("1440x900")
+
+file_path = ""
+upload_type = "file"
+
+def debug_log(message):
+    """Helper function to log debug messages to the output text widget."""
+    output_text.insert(END, f"[DEBUG] {message}\n")
+    output_text.see(END)
+    print(f"[DEBUG] {message}")
+
+def file_dialog():
+    global file_path
+    if upload_type == "file":
+        file_path = filedialog.askopenfilename()
+    else:
+        file_path = filedialog.askdirectory()
+    if file_path:
+        file_label.config(text="Chosen path: " + file_path)
+        debug_log(f"Selected path: {file_path}")
+    else:
+        file_label.config(text="No path selected")
+        debug_log("No path selected in file dialog")
+
+def combine_rules(rules_directory):
+    """
+    Combine all .yar files in the specified directory into a single temporary file.
+    This emulates the engine's approach of loading every rule.
+    """
+    combined_rules = ""
+    try:
+        for filename in os.listdir(rules_directory):
+            if filename.endswith(".yar"):
+                filepath = os.path.join(rules_directory, filename)
+                with open(filepath, "r", encoding="utf-8") as f:
+                    combined_rules += f.read() + "\n"
+        if not combined_rules:
+            debug_log("No .yar rules found in the directory.")
+    except Exception as e:
+        debug_log(f"Error combining rules: {e}")
+    # Create a temporary file to hold the combined rules
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".yar", mode="w", encoding="utf-8")
+    temp_file.write(combined_rules)
+    temp_file.close()
+    debug_log(f"Combined rules written to temporary file: {temp_file.name}")
+    return temp_file.name
+
+def run_engine(path):
+    try:
+        debug_log(f"Starting scan for: {path}")
+        
+       
+        rules_directory = r"C:\Users\ivapa\Downloads\rules\rules"
+       
+        combined_rules_file = combine_rules(rules_directory)
+        
+        if os.path.isdir(path):
+            command = [r"C:\Users\ivapa\Desktop\Final Year Project\Yara_C_Engine\yara-master\windows\vs2019\Debug\yara64.exe", "-r", combined_rules_file, path]
+        else:
+            command = [r"C:\Users\ivapa\Desktop\Final Year Project\Yara_C_Engine\yara-master\windows\vs2019\Debug\yara64.exe", combined_rules_file, path]
+        
+        debug_log(f"Running command: {' '.join(command)}")
+        
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        output = result.stdout.decode(errors="ignore")
+        error_output = result.stderr.decode(errors="ignore")
+        
+        debug_log(f"Subprocess finished with return code: {result.returncode}")
+        
+        output_text.delete(1.0, END)
+        if output:
+            output_text.insert(END, output)
+            debug_log("Scan completed successfully with output.")
+        elif error_output:
+            output_text.insert(END, error_output)
+            debug_log("Scan encountered errors, check error output.")
+        else:
+            output_text.insert(END, "No matches found.")
+            debug_log("Scan completed: No matches found.")
+            
+        output_text.see(END)
+        
+       
+        os.remove(combined_rules_file)
+        debug_log(f"Temporary rules file {combined_rules_file} removed.")
+        
+    except Exception as e:
+        error_msg = f"[!] Error running engine: {str(e)}"
+        output_text.insert(END, error_msg + "\n")
+        debug_log(error_msg)
+
+def execute_engine(path):
+    if path:
+        file_label.config(text=f"Scanning: {path}")
+        output_text.delete(1.0, END)
+        debug_log("Initiating scanning thread.")
+        thread = threading.Thread(target=run_engine, args=(path,))
+        thread.start()
+    else:
+        file_label.config(text="No path selected")
+        debug_log("No path selected when execute_engine was called.")
+
+def toggle_upload_type():
+    global upload_type
+    if upload_type == "file":
+        upload_type = "directory"
+        toggle_button.config(text="Switch to File Upload")
+        debug_log("Switched upload type to directory.")
+    else:
+        upload_type = "file"
+        toggle_button.config(text="Switch to Directory Upload")
+        debug_log("Switched upload type to file.")
+
+# GUI Layout
+tb.Label(text="Best AV in the world", font=("Helvetica", 40)).pack(pady=10)
+
+toggle_button = tb.Button(text="Switch to Directory Upload", bootstyle="secondary", command=toggle_upload_type)
+toggle_button.pack(pady=10)
+
+file_label = tb.Label(text="", font=("Helvetica", 12))
+file_label.pack(pady=10)
+
+image = PhotoImage(file="C:/Users/ivapa/Pictures/Screenshots/arrow.png")  
+image = image.subsample(2, 2)
+image_button = tb.Label(image=image)
+image_button.pack(pady=10)
+image_button.bind("<Button-1>", lambda event: file_dialog())
+
+my_button = tb.Button(text="Upload", bootstyle="primary, outline", command=lambda: execute_engine(file_path))
+my_button.config(padding="40 15")
+my_button.pack(pady=20)
+
+tb.Label(text="Scan results", font=("Helvetica", 30)).pack(pady=20)
+
+output_text = Text(root, width=200, height=30, wrap='word', font=("Helvetica", 14))
+output_text.pack(pady=10)
+
+root.mainloop()
+
+
+########################################################################################################################################################################################
+########################################################################################################################################################################################
+20th Febuary
+
+from tkinter import *
+from tkinter import filedialog
+import subprocess
+import threading
+import os
+import tempfile
+import ttkbootstrap as tb
+
+root = tb.Window(themename="superhero")
+root.title("żbikAV")
+root.geometry("1440x900")
+
+file_path = ""
+upload_type = "file"
+
+def debug_log(message, show_prefix=True):
+    """Helper function to log messages to the output text widget.
+    When show_prefix is True, the message is prefixed with [DEBUG]."""
+    if show_prefix:
+        log_message = f"[DEBUG] {message}\n"
+        print(f"[DEBUG] {message}")
+    else:
+        log_message = f"{message}\n"
+        print(message)
+    output_text.insert(END, log_message)
+    output_text.see(END)
+
+def file_dialog():
+    global file_path
+    if upload_type == "file":
+        file_path = filedialog.askopenfilename()
+    else:
+        file_path = filedialog.askdirectory()
+    if file_path:
+        file_label.config(text="Chosen path: " + file_path)
+        debug_log(f"Selected path: {file_path}")
+    else:
+        file_label.config(text="No path selected")
+        debug_log("No path selected in file dialog")
+
+def combine_rules(rules_directory):
+    """
+    Combine all .yar files in the specified directory into a single temporary file.
+    This emulates the engine's approach of loading every rule.
+    """
+    combined_rules = ""
+    try:
+        for filename in os.listdir(rules_directory):
+            if filename.endswith(".yar"):
+                filepath = os.path.join(rules_directory, filename)
+                with open(filepath, "r", encoding="utf-8") as f:
+                    combined_rules += f.read() + "\n"
+        if not combined_rules:
+            debug_log("No .yar rules found in the directory.")
+    except Exception as e:
+        debug_log(f"Error combining rules: {e}")
+   
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".yar", mode="w", encoding="utf-8")
+    temp_file.write(combined_rules)
+    temp_file.close()
+    debug_log(f"Combined rules written to temporary file: {temp_file.name}")
+    return temp_file.name
+
+def run_engine(path):
+    try:
+        debug_log(f"Starting scan for: {path}")
+        
+       
+        rules_directory = r"C:\Users\ivapa\Downloads\rules\rules"
+        
+        combined_rules_file = combine_rules(rules_directory)
+        
+      
+        if os.path.isdir(path):
+            command = [r"C:\Users\ivapa\Desktop\Final Year Project\Yara_C_Engine\yara-master\windows\vs2019\Debug\yara64.exe", "-r", combined_rules_file, path]
+        else:
+            command = [r"C:\Users\ivapa\Desktop\Final Year Project\Yara_C_Engine\yara-master\windows\vs2019\Debug\yara64.exe", combined_rules_file, path]
+        
+        debug_log(f"Running command: {' '.join(command)}")
+        
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        output = result.stdout.decode(errors="ignore")
+        error_output = result.stderr.decode(errors="ignore")
+        
+        debug_log(f"Subprocess finished with return code: {result.returncode}")
+        
+        output_text.delete(1.0, END)
+        if output:
+            output_text.insert(END, output)
+            debug_log("Scan completed successfully with output.")
+        elif error_output:
+            output_text.insert(END, error_output)
+            debug_log("Scan encountered errors, check error output.")
+        else:
+            output_text.insert(END, "No matches found.")
+            debug_log("Scan completed: No matches found.")
+            
+        output_text.see(END)
+        
+       
+        os.remove(combined_rules_file)
+        debug_log(f"Temporary rules file {combined_rules_file} removed.")
+        
+    except Exception as e:
+        error_msg = f"[!] Error running engine: {str(e)}"
+        output_text.insert(END, error_msg + "\n")
+        debug_log(error_msg)
+
+def execute_engine(path):
+    if path:
+        file_label.config(text=f"Scanning: {path}")
+        output_text.delete(1.0, END)
+        debug_log("Initiating scanning thread.")
+        thread = threading.Thread(target=run_engine, args=(path,))
+        thread.start()
+    else:
+        file_label.config(text="No path selected")
+        debug_log("No path selected when execute_engine was called.")
+
+def toggle_upload_type():
+    global upload_type
+    if upload_type == "file":
+        upload_type = "directory"
+        toggle_button.config(text="Switch to File Upload")
+       
+        debug_log("Switched upload type to directory.", show_prefix=False)
+    else:
+        upload_type = "file"
+        toggle_button.config(text="Switch to Directory Upload")
+        debug_log("Switched upload type to file.", show_prefix=False)
+
+# GUI Layout
+tb.Label(text="Best AV in the world", font=("Helvetica", 40)).pack(pady=10)
+
+toggle_button = tb.Button(text="Switch to Directory Upload", bootstyle="secondary", command=toggle_upload_type)
+toggle_button.pack(pady=10)
+
+file_label = tb.Label(text="", font=("Helvetica", 12))
+file_label.pack(pady=10)
+
+image = PhotoImage(file="C:/Users/ivapa/Pictures/Screenshots/arrow.png")  
+image = image.subsample(2, 2)  
+image_button = tb.Label(image=image)
+image_button.pack(pady=10)
+image_button.bind("<Button-1>", lambda event: file_dialog())
+
+my_button = tb.Button(text="Upload", bootstyle="primary, outline", command=lambda: execute_engine(file_path))
+my_button.config(padding="40 15")
+my_button.pack(pady=20)
+
+tb.Label(text="Scan results", font=("Helvetica", 30)).pack(pady=20)
+
+output_text = Text(root, width=200, height=30, wrap='word', font=("Helvetica", 14))
+output_text.pack(pady=10)
+
+root.mainloop()
+
+
+
+################################################################################################################################################################
+################################################################################################################################################################
+
+27th Febury 
+
+from tkinter import *
+from tkinter import filedialog, messagebox
+import subprocess
+import threading
+import os
+import tempfile
+import ttkbootstrap as tb
+
+root = tb.Window(themename="superhero")
+root.title("żbikAV")
+root.geometry("1440x900")
+root.config(bg="steelblue")  
+
+file_path = ""
+upload_type = "file"
+
+def debug_log(message):
+  
+    print(message)
+    output_text.insert(END, message + "\n")
+    output_text.see(END)
+
+def file_upload():
+    global upload_type
+    upload_type = "file"
+    file_dialog()
+
+def directory_upload():
+    global upload_type
+    upload_type = "directory"
+    file_dialog()
+
+def file_dialog():
+    global file_path
+    if upload_type == "file":
+        file_path = filedialog.askopenfilename()
+    else:
+        file_path = filedialog.askdirectory()
+    if file_path:
+        file_label.config(text="Chosen path: " + file_path)
+        debug_log(f"Selected path: {file_path}")
+    else:
+        file_label.config(text="No path selected")
+        debug_log("No path selected in file dialog")
+
+def combine_rules(rules_directory):
+    combined_rules = ""
+    try:
+        for filename in os.listdir(rules_directory):
+            if filename.endswith(".yar"):
+                filepath = os.path.join(rules_directory, filename)
+                with open(filepath, "r", encoding="utf-8") as f:
+                    combined_rules += f.read() + "\n"
+        if not combined_rules:
+            debug_log("No .yar rules found in the directory.")
+    except Exception as e:
+        debug_log(f"Error combining rules: {e}")
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".yar", mode="w", encoding="utf-8")
+    temp_file.write(combined_rules)
+    temp_file.close()
+    debug_log(f"Combined rules written to temporary file: {temp_file.name}")
+    return temp_file.name
+
+def run_engine(path):
+    try:
+        debug_log(f"Starting scan for: {path}")
+        
+        rules_directory = r"C:\Users\ivapa\Downloads\rules\rules"
+        combined_rules_file = combine_rules(rules_directory)
+        
+        if os.path.isdir(path):
+            command = [r"C:\Users\ivapa\Desktop\Final Year Project\Yara_C_Engine\yara-master\windows\vs2019\Debug\yara64.exe", "-r", combined_rules_file, path]
+        else:
+            command = [r"C:\Users\ivapa\Desktop\Final Year Project\Yara_C_Engine\yara-master\windows\vs2019\Debug\yara64.exe", combined_rules_file, path]
+        
+        debug_log(f"Running command: {' '.join(command)}")
+        
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        output = result.stdout.decode(errors="ignore")
+        error_output = result.stderr.decode(errors="ignore")
+        
+        debug_log(f"Subprocess finished with return code: {result.returncode}")
+        
+        output_text.delete(1.0, END)
+        if output:
+            output_text.insert(END, output)
+            debug_log("Scan completed successfully with output.")
+        elif error_output:
+            output_text.insert(END, error_output)
+            debug_log("Scan encountered errors, check error output.")
+        else:
+            output_text.insert(END, "No matches found.")
+            debug_log("Scan completed: No matches found.")
+            if os.path.isdir(path):
+                messagebox.showinfo("Scan Result", "No virus was found in the directory.")
+            else:
+                messagebox.showinfo("Scan Result", "No virus was found in the file.")
+            
+        output_text.see(END)
+        
+        os.remove(combined_rules_file)
+        debug_log(f"Temporary rules file {combined_rules_file} removed.")
+        
+    except Exception as e:
+        error_msg = f"[!] Error running engine: {str(e)}"
+        output_text.insert(END, error_msg + "\n")
+        debug_log(error_msg)
+
+def execute_engine(path):
+    if path:
+        file_label.config(text=f"Scanning: {path}")
+        output_text.delete(1.0, END)
+        debug_log("Initiating scanning thread.")
+        thread = threading.Thread(target=run_engine, args=(path,))
+        thread.start()
+    else:
+        file_label.config(text="No path selected")
+        debug_log("No path selected when execute_engine was called.")
+
+# -------------------- GUI Layout --------------------
+
+tb.Label(root, text="Ivan's AntiVirus", font=("Helvetica", 40), bootstyle="default", background="steelblue").pack(pady=10)
+
+
+button_frame = Frame(root, bg="steelblue")
+button_frame.pack(pady=10)
+
+file_button = tb.Button(button_frame, text="File Upload", bootstyle="secondary")
+file_button.config(padding="30 15")
+file_button.pack(side=LEFT, padx=10)
+
+directory_button = tb.Button(button_frame, text="Directory Upload", bootstyle="secondary")
+directory_button.config(padding="30 15")
+directory_button.pack(side=LEFT, padx=10)
+
+file_button.config(command=file_upload)
+directory_button.config(command=directory_upload)
+
+file_label = tb.Label(root, text="", font=("Helvetica", 12), background="steelblue")
+file_label.pack(pady=10)
+
+image = PhotoImage(file="C:/Users/ivapa/Pictures/Screenshots/arrow.png")
+image = image.subsample(2, 2)
+image_button = tb.Label(root, image=image, background="steelblue")
+image_button.pack(pady=10)
+
+my_button = tb.Button(root, text="Upload", bootstyle="primary, outline", command=lambda: execute_engine(file_path))
+my_button.config(padding="40 15")
+my_button.pack(pady=20)
+
+tb.Label(root, text="Scan results", font=("Helvetica", 30), background="steelblue").pack(pady=20)
+
+output_text = Text(root, width=200, height=30, wrap='word', font=("Helvetica", 14))
+output_text.pack(pady=10)
+
+root.mainloop()
+################################################################################################################################################################
+################################################################################################################################################################
+
+Latest 
+
+
+from tkinter import *
+from tkinter import filedialog, messagebox
+import subprocess
+import threading
+import os
+import tempfile
+import ttkbootstrap as tb
+
+# Ensure the quarantine directory exists
+quarantine_dir = r"C:\Quarantine"
+if not os.path.exists(quarantine_dir):
+    os.makedirs(quarantine_dir)
+
+# Initialize main window using ttkbootstrap
+root = tb.Window(themename="cyborg")
+root.title("żbikAV")
+root.geometry("1440x900")
+
+file_path = ""
+upload_type = "file"
+
+def debug_log(message):
+    """Log messages to console and the GUI output widget."""
+    print(message)
+    output_text.insert(END, message + "\n")
+    output_text.see(END)
+
+def file_upload():
+    """Set upload type to file and open file dialog."""
+    global upload_type
+    upload_type = "file"
+    file_dialog()
+
+def directory_upload():
+    """Set upload type to directory and open directory dialog."""
+    global upload_type
+    upload_type = "directory"
+    file_dialog()
+
+def file_dialog():
+    """Open the appropriate dialog (file or directory) based on upload_type."""
+    global file_path
+    if upload_type == "file":
+        file_path = filedialog.askopenfilename()
+    else:
+        file_path = filedialog.askdirectory()
+    if file_path:
+        file_label.config(text="Chosen path: " + file_path)
+        debug_log(f"Selected path: {file_path}")
+    else:
+        file_label.config(text="No path selected")
+        debug_log("No path selected in file dialog")
+
+def combine_rules(rules_directory):
+    """
+    Combine all .yar rule files from the specified directory into one temporary file.
+    Returns the path to the temporary file.
+    """
+    combined_rules = ""
+    try:
+        for filename in os.listdir(rules_directory):
+            if filename.endswith(".yar"):
+                filepath = os.path.join(rules_directory, filename)
+                with open(filepath, "r", encoding="utf-8") as f:
+                    combined_rules += f.read() + "\n"
+        if not combined_rules:
+            debug_log("No .yar rules found in the directory.")
+    except Exception as e:
+        debug_log(f"Error combining rules: {e}")
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".yar", mode="w", encoding="utf-8")
+    temp_file.write(combined_rules)
+    temp_file.close()
+    debug_log(f"Combined rules written to temporary file: {temp_file.name}")
+    return temp_file.name
+
+def run_engine(path):
+    """Run the YARA scanning engine in a subprocess using the combined rules."""
+    try:
+        debug_log(f"Starting scan for: {path}")
+        rules_directory = r"C:\Users\ivapa\Downloads\rules\rules"
+        combined_rules_file = combine_rules(rules_directory)
+        command = [
+            r"C:\Users\ivapa\Desktop\Final Year Project\Yara_C_Engine\yara-master\windows\vs2019\Debug\yara64.exe",
+            combined_rules_file,
+            path
+        ]
+        debug_log(f"Running command: {' '.join(command)}")
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output = result.stdout.decode(errors="ignore")
+        error_output = result.stderr.decode(errors="ignore")
+        debug_log(f"Subprocess finished with return code: {result.returncode}")
+        output_text.delete(1.0, END)
+        if output:
+            output_text.insert(END, output)
+            debug_log("Scan completed successfully with output.")
+        elif error_output:
+            output_text.insert(END, error_output)
+            debug_log("Scan encountered errors, check error output.")
+        else:
+            output_text.insert(END, "No matches found.")
+            debug_log("Scan completed: No matches found.")
+            if os.path.isdir(path):
+                messagebox.showinfo("Scan Result", "No virus was found in the directory.")
+            else:
+                messagebox.showinfo("Scan Result", "No virus was found in the file.")
+        output_text.see(END)
+        os.remove(combined_rules_file)
+        debug_log(f"Temporary rules file {combined_rules_file} removed.")
+    except Exception as e:
+        error_msg = f"[!] Error running engine: {str(e)}"
+        output_text.insert(END, error_msg + "\n")
+        debug_log(error_msg)
+
+def execute_engine(path):
+    """Start the scanning process in a separate thread."""
+    if path:
+        file_label.config(text=f"Scanning: {path}")
+        output_text.delete(1.0, END)
+        debug_log("Initiating scanning thread.")
+        thread = threading.Thread(target=run_engine, args=(path,))
+        thread.start()
+    else:
+        file_label.config(text="No path selected")
+        debug_log("No path selected when execute_engine was called.")
+
+def open_quarantine_window():
+    """Open a new window to display files in the quarantine directory."""
+    quarantine_files = os.listdir(quarantine_dir)
+    q_window = Toplevel(root)
+    q_window.title("Quarantined Files")
+    q_window.geometry("600x400")
+    label = Label(q_window, text="Quarantined Files", font=("Helvetica", 16))
+    label.pack(pady=10)
+    listbox = Listbox(q_window, width=80, height=20, font=("Helvetica", 12))
+    listbox.pack(pady=10)
+    if quarantine_files:
+        for file in quarantine_files:
+            listbox.insert(END, file)
+    else:
+        listbox.insert(END, "No files in quarantine.")
+
+# ------------------- GUI Layout -------------------
+tb.Label(text="Ivan's AntiVirus", font=("Helvetica", 40)).pack(pady=10)
+
+button_frame = Frame(root)
+button_frame.pack(pady=10)
+
+file_button = tb.Button(button_frame, text="File Upload", bootstyle="secondary", command=file_upload)
+file_button.config(padding="30 15")
+file_button.pack(side=LEFT, padx=10)
+
+directory_button = tb.Button(button_frame, text="Directory Upload", bootstyle="secondary", command=directory_upload)
+directory_button.config(padding="30 15")
+directory_button.pack(side=LEFT, padx=10)
+
+file_label = tb.Label(text="", font=("Helvetica", 12))
+file_label.pack(pady=10)
+
+image = PhotoImage(file="C:/Users/ivapa/Pictures/Screenshots/arrow.png")
+image = image.subsample(2, 2)
+image_button = tb.Label(image=image)
+image_button.pack(pady=10)
+
+my_button = tb.Button(text="Upload", bootstyle="primary, outline", command=lambda: execute_engine(file_path))
+my_button.config(padding="40 15")
+my_button.pack(pady=20)
+
+quarantine_button = tb.Button(text="Quarantine", bootstyle="info, outline", command=open_quarantine_window)
+quarantine_button.config(padding="40 15")
+quarantine_button.pack(pady=10)
+
+tb.Label(text="Malware Scan Results", font=("Helvetica", 30)).pack(pady=20)
+
+output_text = Text(root, width=200, height=30, wrap='word', font=("Helvetica", 14))
+output_text.pack(pady=10)
+
+root.mainloop()
+
+
