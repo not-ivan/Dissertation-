@@ -1,0 +1,355 @@
+
+
+import requests
+import time
+from multiprocessing import Process, Queue
+
+def fetch_proxies(url="https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc"):
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        proxies = data.get("data", [])
+        print(f"Fetched {len(proxies)} proxies from API.")
+        return proxies
+    except Exception as e:
+        print(f"Error fetching proxies from {url}: {e}")
+        return []
+
+def filter_proxies(proxies, min_uptime=99, max_speed=1):
+    filtered = []
+    for proxy in proxies:
+        try:
+            uptime = float(proxy.get("upTime", 0))
+            speed = float(proxy.get("speed", 999))
+        except Exception:
+            continue
+        if uptime >= min_uptime and speed <= max_speed:
+            filtered.append(proxy)
+    return filtered
+
+def test_proxy(proxy, test_url="http://httpbin.org/ip", timeout=5):
+    ip = proxy.get("ip")
+    port = proxy.get("port")
+    if not ip or not port:
+        return None, None
+
+    protocol_list = proxy.get("protocols", ["http"])
+    protocol = protocol_list[0].lower()
+    proxy_url = f"{protocol}://{ip}:{port}"
+    proxies_config = {
+        "http": proxy_url,
+        "https": proxy_url
+    }
+
+    try:
+        start = time.time()
+        r = requests.get(test_url, proxies=proxies_config, timeout=timeout)
+        r.raise_for_status()
+        elapsed = time.time() - start
+        return elapsed, proxies_config
+    except Exception as e:
+        print(f"Test proxy error ({ip}:{port}, {protocol}): {e}")
+        return None, None
+
+def connect_via_proxy(proxies_config, test_url="http://httpbin.org/ip", timeout=10, retries=1):
+    session = requests.Session()
+    session.proxies.update(proxies_config)
+
+    for attempt in range(retries):
+        try:
+            response = session.get(test_url, timeout=timeout)
+            response.raise_for_status()
+            return response.text
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed: {e}")
+            time.sleep(1)
+    return None
+
+def main_process(q):
+    # Main process logic: fetch, filter, and test proxies until a working one is found.
+    start_time = time.time()
+
+    proxies = fetch_proxies()
+    if not proxies:
+        q.put("No proxies fetched from API.")
+        return
+
+    qualified = filter_proxies(proxies, min_uptime=99, max_speed=1)
+    print(f"Found {len(qualified)} proxies meeting criteria (uptime >= 99, speed <= 1).")
+
+    for proxy in qualified:
+        if time.time() - start_time > 100:
+            q.put("Please try again")
+            return
+
+        elapsed, config = test_proxy(proxy)
+        if elapsed is not None:
+            ip = proxy["ip"]
+            port = proxy["port"]
+            print(f"Proxy {ip}:{port} responded in {elapsed:.2f}s. Trying a full connection...")
+            result = connect_via_proxy(config, timeout=10, retries=2)
+            if result:
+                success_msg = f"Successfully connected using proxy {ip}:{port}!\nTest response:\n{result}"
+                q.put(success_msg)
+                return
+            else:
+                print(f"Proxy {ip}:{port} failed on full connection test.")
+
+    q.put("No suitable proxy could be connected from the filtered list.")
+
+def main():
+    # Run the main proxy check in a separate process and manage its output.
+    q = Queue()
+    p = Process(target=main_process, args=(q,))
+    p.start()
+
+    p.join(100)
+    if p.is_alive():
+        p.terminate()
+        print("It is taking too long to connect, please try again")
+    else:
+        if not q.empty():
+            output = q.get()
+            print(output)
+        else:
+            print("No output received.")
+
+if __name__ == "__main__":
+    main()
+
+##################################################################################################################################################################
+##################################################################################################################################################################
+
+
+
+
+import requests
+import time
+import sys
+from multiprocessing import Process, Queue
+
+def fetch_proxies(url="https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc"):
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        proxies = data.get("data", [])
+        print(f"Fetched {len(proxies)} proxies from API.")
+        return proxies
+    except Exception as e:
+        print(f"Error fetching proxies from {url}: {e}")
+        return []
+
+def filter_proxies(proxies, min_uptime=99, max_speed=1):
+    filtered = []
+    for proxy in proxies:
+        try:
+            uptime = float(proxy.get("upTime", 0))
+            speed = float(proxy.get("speed", 999))
+        except Exception:
+            continue
+        if uptime >= min_uptime and speed <= max_speed:
+            filtered.append(proxy)
+    return filtered
+
+def test_proxy(proxy, test_url="http://httpbin.org/ip", timeout=5):
+    ip = proxy.get("ip")
+    port = proxy.get("port")
+    if not ip or not port:
+        return None, None
+
+    protocol_list = proxy.get("protocols", ["http"])
+    protocol = protocol_list[0].lower()
+    proxy_url = f"{protocol}://{ip}:{port}"
+    proxies_config = {
+        "http": proxy_url,
+        "https": proxy_url
+    }
+
+    try:
+        start = time.time()
+        r = requests.get(test_url, proxies=proxies_config, timeout=timeout)
+        r.raise_for_status()
+        elapsed = time.time() - start
+        return elapsed, proxies_config
+    except Exception as e:
+        print(f"Test proxy error ({ip}:{port}, {protocol}): {e}")
+        return None, None
+
+def connect_via_proxy(proxies_config, test_url="http://httpbin.org/ip", timeout=10, retries=1):
+    session = requests.Session()
+    session.proxies.update(proxies_config)
+    for attempt in range(retries):
+        try:
+            response = session.get(test_url, timeout=timeout)
+            response.raise_for_status()
+            return response.text
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed: {e}")
+            time.sleep(1)
+    return None
+
+def main_process(q):
+    # Fetch and filter proxies, then test each for a successful connection.
+    proxies = fetch_proxies()
+    if not proxies:
+        q.put("No proxies fetched from API.")
+        return
+
+    qualified = filter_proxies(proxies, min_uptime=99, max_speed=1)
+    print(f"Found {len(qualified)} proxies meeting criteria (uptime >= 99, speed <= 1).")
+
+    for proxy in qualified:
+        elapsed, config = test_proxy(proxy)
+        if elapsed is not None:
+            ip = proxy["ip"]
+            port = proxy["port"]
+            print(f"Proxy {ip}:{port} responded in {elapsed:.2f}s. Trying full connection...")
+            result = connect_via_proxy(config, timeout=10, retries=2)
+            if result:
+                success_msg = f"Successfully connected using proxy {ip}:{port}!\nTest response:\n{result}"
+                print(success_msg)
+                # Special output for VB: print connected proxy information.
+                print(f"CONNECTED_IP={ip}:{port}")
+                q.put(f"CONNECTED_IP={ip}:{port}")
+                return
+            else:
+                print(f"Proxy {ip}:{port} failed on full connection test.")
+
+    q.put("No suitable proxy could be connected from the filtered list.")
+
+def main():
+    # Run proxy check in a separate process with a timeout.
+    q = Queue()
+    p = Process(target=main_process, args=(q,))
+    p.start()
+
+    p.join(100)
+    if p.is_alive():
+        p.terminate()
+        print("It is taking too long to connect, please try again")
+    else:
+        if not q.empty():
+            output = q.get()
+            print(output)
+        else:
+            print("No output received.")
+
+if __name__ == "__main__":
+    main()
+
+
+
+##################################################################################################################################################################
+##################################################################################################################################################################
+
+
+
+import requests
+import time
+import random
+
+def fetch_proxies(url="https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc"):
+    # Fetch proxy list from the API endpoint.
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        proxies = data.get("data", [])
+        print(f"Fetched {len(proxies)} proxies from API.")
+        return proxies
+    except Exception as e:
+        print(f"Error fetching proxies: {e}")
+        return []
+
+def filter_proxies(proxies, min_uptime=99, max_speed=1):
+    # Filter proxies based on uptime and speed criteria.
+    filtered = []
+    for proxy in proxies:
+        try:
+            uptime = float(proxy.get("upTime", 0))
+            speed = float(proxy.get("speed", 999))
+        except Exception:
+            continue
+        if uptime >= min_uptime and speed <= max_speed:
+            filtered.append(proxy)
+    return filtered
+
+def test_proxy(proxy, test_url="http://httpbin.org/ip", timeout=5):
+    # Test if a proxy can successfully fetch the test URL.
+    ip = proxy.get("ip")
+    port = proxy.get("port")
+    if not ip or not port:
+        return None, None
+
+    protocol_list = proxy.get("protocols", ["http"])
+    protocol = protocol_list[0].lower()
+    proxy_url = f"{protocol}://{ip}:{port}"
+    proxies_config = {
+        "http": proxy_url,
+        "https": proxy_url
+    }
+
+    try:
+        start = time.time()
+        r = requests.get(test_url, proxies=proxies_config, timeout=timeout)
+        r.raise_for_status()
+        elapsed = time.time() - start
+        return elapsed, proxies_config
+    except Exception as e:
+        print(f"Test proxy error ({ip}:{port}, {protocol}): {e}")
+        return None, None
+
+def get_working_proxies():
+    # Build a list of proxies that pass the test.
+    proxies = fetch_proxies()
+    if not proxies:
+        return []
+    qualified = filter_proxies(proxies)
+    working_proxies = []
+    for proxy in qualified:
+        elapsed, config = test_proxy(proxy)
+        if elapsed is not None:
+            working_proxies.append(config)
+            print(f"Added working proxy: {proxy['ip']}:{proxy['port']} (responded in {elapsed:.2f}s)")
+    return working_proxies
+
+def rotate_request(working_proxies, url="http://httpbin.org/ip", timeout=10):
+    # Randomly select a working proxy and use it to make a request.
+    if not working_proxies:
+        print("No working proxies available")
+        return None
+    config = random.choice(working_proxies)
+    session = requests.Session()
+    session.proxies.update(config)
+    try:
+        response = session.get(url, timeout=timeout)
+        response.raise_for_status()
+        return response.text
+    except Exception as e:
+        print(f"Request error using proxy {config}: {e}")
+        return None
+
+def main():
+    # Retrieve working proxies and perform multiple requests with proxy rotation.
+    working_proxies = get_working_proxies()
+    if not working_proxies:
+        print("No working proxies found. Exiting.")
+        return
+
+    print(f"Total working proxies: {len(working_proxies)}")
+    for i in range(10):
+        result = rotate_request(working_proxies)
+        if result:
+            print(f"Request {i+1} result:\n{result}")
+        else:
+            print(f"Request {i+1} failed.")
+        time.sleep(1)
+
+if __name__ == "__main__":
+    main()
+
+
+
+
