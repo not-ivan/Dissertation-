@@ -1,0 +1,116 @@
+rule CustomMalwareIndicator {
+    meta:
+        description = "Detects potential malware in Windows executables using suspicious patterns"
+        author = "Ivan"
+        date = "2025-04-05"
+        version = "1.0"
+        license = "MIT"
+        sample_hashes = "ABC123, DEF456"
+        
+    strings:
+        $mz = { 4D 5A }                    // DOS header ("MZ")
+        $suspicious_cmd = "cmd.exe" nocase   // Indicator: command interpreter
+        $suspicious_ps = "powershell" nocase  // Indicator: PowerShell usage
+        $function_call = { E8 ?? ?? ?? ?? 68 } // Example: potential function call pattern
+        
+    condition:
+        uint16(0) == 0x5A4D and          // Verify DOS header
+        filesize < 1048576 and           // Limit file size to 1MB
+        (2 of ($suspicious_cmd, $suspicious_ps, $function_call))
+}
+
+
+File Type Check:
+The rule first checks if the file starts with the "MZ" header. Since "MZ" is the signature of a Windows executable, this ensures we’re scanning the correct file type.
+
+File Size Filter:
+It only processes files smaller than 1 MB. This keeps the scan focused and avoids wasting time on very large files.
+
+Suspicious Indicators:
+The rule then looks for at least two out of three indicators:
+
+The string "cmd.exe" ,
+
+The string "powershell", and
+
+A specific hex pattern that looks like a function call, which might suggest obfuscated or malicious behavior.
+
+
+
+
+rule SuspiciousPDFJS {
+    meta:
+        description = "Detects suspicious JavaScript embedded in PDF files"
+        author = "Ivan"
+        date = "2025-04-05"
+        version = "1.0"
+        license = "MIT"
+        
+    strings:
+        $pdf_header      = "%PDF-"            // PDF file signature
+        $js_keyword      = "JavaScript" nocase
+        $eval_func       = "eval(" nocase
+        $unescape_func   = "unescape(" nocase
+        $suspicious_regex = /\/S\s*eval\s*\(/ nocase  // Regex for obfuscated eval calls
+
+    condition:
+        $pdf_header at 0 and                // Ensure file is a PDF
+        filesize < 5242880 and              // Only scan PDFs smaller than 5 MB
+        (2 of ($js_keyword, $eval_func, $unescape_func, $suspicious_regex))
+}
+
+
+File Check:
+It first ensures the file is actually a PDF by checking that it starts with “%PDF-.”
+
+Size Filter:
+It only processes files under 5 MB, which helps focus the scan on likely targets and avoid unnecessarily large files.
+
+JavaScript Indicators:
+The rule looks for several suspicious signs:
+
+The word “JavaScript”
+
+The function call “eval(”
+
+The function call “unescape(”
+
+A regex pattern designed to catch obfuscated eval calls
+
+Detection Logic:
+It triggers if at least two of these indicators are present, which helps reduce false alarms while still catching potential threats.
+
+
+
+
+
+rule SuspiciousOfficeMacro {
+    meta:
+        description = "Detects potential malicious macros in Office documents"
+        author = "Ivan"
+        date = "2025-04-05"
+        version = "1.0"
+        license = "MIT"
+
+    strings:
+        $autoopen      = "AutoOpen" nocase            
+        $shell         = "Shell" nocase                
+        $create_obj    = "CreateObject" nocase          
+        $execute       = "Execute" nocase               
+        $macro_regex   = /Sub\s+AutoOpen|Function\s+AutoOpen/ nocase
+
+    condition:
+        uint16(0) == 0xD0CF and         // Check for OLE header (Office documents)
+        filesize < 2097152 and           // Only process files smaller than 2 MB
+        any of ($autoopen, $shell, $create_obj, $execute, $macro_regex)
+}
+
+
+File Check:
+It looks for the OLE header (0xD0CF) which indicates an Office document, and it only processes files smaller than 2 MB.
+
+Macro Indicators:
+The rule scans for common macro keywords like "AutoOpen", "Shell", "CreateObject", and "Execute", along with a regex to catch macro functions. These indicators can signal that the document might contain harmful macros.
+
+Detection Logic:
+If any of these suspicious indicators are found, the rule triggers, flagging the file for further review.
